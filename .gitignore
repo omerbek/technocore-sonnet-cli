@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+identity.pem
+.sonnet-receipts/
+.pytest_cache/
