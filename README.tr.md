@@ -113,6 +113,23 @@ python sonnet_cli.py join \
 Araç, imzali kaydi yazma isteginden once kontrol eder. Ilk kabul edilen rol
 sabittir; writer sonradan voter olamaz.
 
+Sinirli oda eski kaydi artik tutmuyorsa, kaydedilmis ham JSONL kaydi aday kanit
+olarak yerel kontrolden gecirilebilir:
+
+```sh
+python sonnet_cli.py join \
+  --key identity.pem \
+  --role writer \
+  --x-url https://x.com/kullaniciadi \
+  --evidence-room prestart-oda \
+  --evidence-seq 42 \
+  --evidence-file kaydedilmis-prestart-kaydi.jsonl
+```
+
+Bu kontrol DID imzasini, odayi, sequence secimini ve bildirilen zamani dogrular.
+Yerel dosyadaki sunucu tarafindan atanmis metaveriyi bagimsiz olarak
+dogrulayamaz; hakemin guvenilir sunucu arsivi kontrolu yine gereklidir.
+
 ## Ekip ve kelimeler
 
 Referee, oda adini ve guncel generation degerini vermeden roster imzalamayin.

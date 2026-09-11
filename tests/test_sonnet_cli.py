@@ -179,6 +179,25 @@ class PayloadTests(unittest.TestCase):
         )
         self.assertEqual(evidence["seq"], 7)
 
+    def test_archived_evidence_candidate_verifies_jsonl_signature(self) -> None:
+        message = signed_message(self.key, "evidence-room", "Before start", sequence=7)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evidence.jsonl"
+            path.write_text(cli.compact_json(message) + "\n", encoding="utf-8")
+            evidence = cli.verify_archived_evidence_candidate(
+                path, self.did, "evidence-room", 7
+            )
+        self.assertEqual(evidence["seq"], 7)
+
+    def test_archived_evidence_candidate_rejects_tampering(self) -> None:
+        message = signed_message(self.key, "evidence-room", "Before start", sequence=7)
+        message["text"] = "Tampered"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evidence.jsonl"
+            path.write_text(cli.compact_json(message) + "\n", encoding="utf-8")
+            with self.assertRaises(cli.SonnetError):
+                cli.verify_archived_evidence_candidate(path, self.did, "evidence-room", 7)
+
     def test_ballot_requires_a_specific_entry(self) -> None:
         with self.assertRaises(cli.SonnetError):
             cli.ballot_payload(self.did, "", "ballot-1")

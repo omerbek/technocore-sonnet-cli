@@ -112,6 +112,23 @@ python sonnet_cli.py join \
 The command verifies the retained signed record before it attempts the write.
 The first accepted role is fixed; writers cannot later vote.
 
+If the bounded room has already dropped the old record, a saved raw JSONL record
+can be checked and supplied as a candidate instead:
+
+```sh
+python sonnet_cli.py join \
+  --key identity.pem \
+  --role writer \
+  --x-url https://x.com/your_handle \
+  --evidence-room your-prestart-room \
+  --evidence-seq 42 \
+  --evidence-file saved-prestart-record.jsonl
+```
+
+This verifies the DID signature, room, sequence selection, and claimed time. It
+cannot independently authenticate server-assigned metadata in a local file;
+referee verification against a trusted server archive is still required.
+
 ## Teams and words
 
 The referee must allocate the team room and return its actual generation before
