@@ -1,14 +1,16 @@
 # Technocore Sonnet CLI
 
 A small, bilingual, fail-closed command-line helper for the
-[`sonnet-1` Technocore Sonnet Challenge](https://github.com/flop-labs/technocore-sonnet-challange).
+[`sonnet-2` Technocore Sonnet Challenge](https://github.com/flop-labs/technocore-sonnet-challenge).
 It supports identity inspection, launch checks, registration, team setup,
 word proposals, submissions and ballots. It is not an official FLOP Labs tool.
 
 The implementation deliberately refuses to write when it cannot establish the
-rules' trust prerequisites: an owner-pinned, referee-signed launch record,
-the expected rules commit and manifest hash, and pre-start server evidence for
-writer/voter identities.
+official launch chain: the referee DID pinned in
+[LAUNCH.md](https://github.com/flop-labs/technocore-sonnet-challenge/blob/main/LAUNCH.md),
+matching rules/results room owner notes, an owner-signed `sonnet.launch.v1`
+record, the expected package URL and manifest hash, and pre-start server evidence
+for writer/voter identities.
 
 Turkce aciklama icin [README.tr.md](README.tr.md) dosyasina bakin.
 
@@ -76,10 +78,12 @@ launch record, the contest has not met the public rules package's setup gate.
 Do not substitute a room name, user-written room topic, tweet, or unsigned
 message for an official launch record.
 
-After FLOP Labs publishes the referee DID, pin it in every write command:
+This release pins the referee DID from the official `LAUNCH.md`. You may repeat
+it explicitly when scripting; a different DID is rejected:
 
 ```sh
-python sonnet_cli.py status --referee-did did:key:z6Mk...
+python sonnet_cli.py status \
+  --referee-did did:key:z6MkowHQwsx9xr84WbWN3YCnKutyBnBXkT1ChKY4uEAAMzte
 ```
 
 ## Identity and writer registration
@@ -92,14 +96,13 @@ python sonnet_cli.py init --key identity.pem
 python sonnet_cli.py did --key identity.pem
 ```
 
-For `sonnet-1`, a new key created after the opening cannot become a writer or
+For `sonnet-2`, a new key created after the opening cannot become a writer or
 voter. A valid existing writer registration needs a verifiable pre-start room
 and sequence:
 
 ```sh
 python sonnet_cli.py join \
   --key identity.pem \
-  --referee-did did:key:z6Mk... \
   --role writer \
   --x-url https://x.com/your_handle \
   --evidence-room your-prestart-room \
@@ -117,11 +120,11 @@ list. Never use multiple DIDs for one person.
 
 ```sh
 python sonnet_cli.py team-request \
-  --key identity.pem --referee-did did:key:z6Mk... --game-id aurora
+  --key identity.pem --game-id aurora
 
 python sonnet_cli.py roster \
-  --key identity.pem --referee-did did:key:z6Mk... \
-  --game-id aurora --poem-room d-sonnet-1-team-aurora \
+  --key identity.pem \
+  --game-id aurora --poem-room d-sonnet-2-team-aurora \
   --room-generation 1 \
   --member did:key:z6MkWriterOne... \
   --member did:key:z6MkWriterTwo... \
@@ -136,8 +139,8 @@ CMUdict syllable acceptance.
 
 ```sh
 python sonnet_cli.py word \
-  --key identity.pem --referee-did did:key:z6Mk... \
-  --game-id aurora --poem-room d-sonnet-1-team-aurora \
+  --key identity.pem \
+  --game-id aurora --poem-room d-sonnet-2-team-aurora \
   --room-generation 1 --state-version 12 \
   --previous-state-hash 0123...abcd \
   --word The
@@ -152,7 +155,7 @@ registered voter can review the poem and choose to use:
 
 ```sh
 python sonnet_cli.py support \
-  --key identity.pem --referee-did did:key:z6Mk...
+  --key identity.pem
 ```
 
 This never creates a wallet, moves tokens, or asks for a seed phrase. It merely
@@ -164,7 +167,7 @@ To vote for a different accepted entry, use its ID directly:
 
 ```sh
 python sonnet_cli.py vote \
-  --key identity.pem --referee-did did:key:z6Mk... \
+  --key identity.pem \
   --entry-id accepted-entry-id
 ```
 
@@ -176,8 +179,8 @@ submit the packet:
 
 ```sh
 python sonnet_cli.py submit \
-  --key identity.pem --referee-did did:key:z6Mk... \
-  --game-id aurora --poem-room d-sonnet-1-team-aurora \
+  --key identity.pem \
+  --game-id aurora --poem-room d-sonnet-2-team-aurora \
   --room-generation 1 --final-version 98 \
   --poem-sha256 0123...abcd \
   --x-post-id 1234567890123456789

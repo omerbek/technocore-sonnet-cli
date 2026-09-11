@@ -1,14 +1,15 @@
 # Technocore Sonnet CLI
 
-[`sonnet-1` Technocore Sonnet Challenge](https://github.com/flop-labs/technocore-sonnet-challange)
+[`sonnet-2` Technocore Sonnet Challenge](https://github.com/flop-labs/technocore-sonnet-challenge)
 icin kucuk, iki dilli ve guvenli varsayilanlara sahip bir komut satiri aracidir.
 DID kontrolu, launch dogrulamasi, kayit, ekip kurulumu, kelime onerisi,
 submission ve oy akisini destekler. Resmi bir FLOP Labs araci degildir.
 
 Arac, asagidaki guven kosullari dogrulanmadan mesaj yazmayacak sekilde tasarlandi:
 
-- owner notuyla sabitlenmis referee DID,
-- bu DID tarafindan imzalanmis launch kaydi,
+- resmi [LAUNCH.md](https://github.com/flop-labs/technocore-sonnet-challenge/blob/main/LAUNCH.md)
+  dosyasinda sabitlenmis referee DID,
+- rules/results owner notlariyla eslesen bu DID tarafindan imzalanmis launch kaydi,
 - beklenen kurallar commit'i ve manifest SHA-256 degeri,
 - writer/voter DID'i icin baslangictan once sunucu tarafindan zaman damgali,
   imzali kayit.
@@ -78,10 +79,12 @@ python sonnet_cli.py status
 yoksa, resmi kurallar paketinin setup kosulu henuz saglanmamis demektir. Oda
 ismi, kullanici yazisi, tweet veya imzasiz mesaj launch kaydinin yerine gecmez.
 
-FLOP Labs referee DID'i acikladiktan sonra her yazma komutunda sabitleyin:
+Bu surum resmi `LAUNCH.md` dosyasindaki referee DID'i sabitler. Script yazarken
+acikca tekrar edebilirsiniz; farkli bir DID reddedilir:
 
 ```sh
-python sonnet_cli.py status --referee-did did:key:z6Mk...
+python sonnet_cli.py status \
+  --referee-did did:key:z6MkowHQwsx9xr84WbWN3YCnKutyBnBXkT1ChKY4uEAAMzte
 ```
 
 ## DID ve writer kaydi
@@ -94,14 +97,13 @@ python sonnet_cli.py init --key identity.pem
 python sonnet_cli.py did --key identity.pem
 ```
 
-`sonnet-1` icin acilistan sonra olusturulan anahtar writer veya voter olamaz.
+`sonnet-2` icin acilistan sonra olusturulan anahtar writer veya voter olamaz.
 Mevcut DID ile writer kaydi icin, eski imzali kaydin oda ve sequence bilgisi
 gereklidir:
 
 ```sh
 python sonnet_cli.py join \
   --key identity.pem \
-  --referee-did did:key:z6Mk... \
   --role writer \
   --x-url https://x.com/kullaniciadi \
   --evidence-room prestart-oda \
@@ -119,11 +121,11 @@ kullanmayin.
 
 ```sh
 python sonnet_cli.py team-request \
-  --key identity.pem --referee-did did:key:z6Mk... --game-id aurora
+  --key identity.pem --game-id aurora
 
 python sonnet_cli.py roster \
-  --key identity.pem --referee-did did:key:z6Mk... \
-  --game-id aurora --poem-room d-sonnet-1-team-aurora \
+  --key identity.pem \
+  --game-id aurora --poem-room d-sonnet-2-team-aurora \
   --room-generation 1 \
   --member did:key:z6MkWriterOne... \
   --member did:key:z6MkWriterTwo... \
@@ -143,7 +145,7 @@ O zaman uygun kayitli voter, siiri okuyup isterse su komutu kullanabilir:
 
 ```sh
 python sonnet_cli.py support \
-  --key identity.pem --referee-did did:key:z6Mk...
+  --key identity.pem
 ```
 
 Bu komut cuzdan olusturmaz, token tasimaz, seed phrase istemez. Kurallardaki
@@ -155,7 +157,7 @@ Farkli kabul edilmis bir entry icin:
 
 ```sh
 python sonnet_cli.py vote \
-  --key identity.pem --referee-did did:key:z6Mk... \
+  --key identity.pem \
   --entry-id kabul-edilmis-entry-id
 ```
 

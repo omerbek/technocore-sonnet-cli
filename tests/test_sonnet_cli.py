@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -46,6 +49,25 @@ def signed_message(
     }
 
 
+def launch_text(referee: str) -> str:
+    return cli.compact_json(
+        {
+            "type": "sonnet.launch.v1",
+            "status": "open",
+            "rooms_provisioned": True,
+            "configuration": {
+                "contest_id": cli.CONTEST_ID,
+                "referee": referee,
+                "rooms": cli.EXPECTED_ROOMS,
+            },
+            "package": {
+                "url": cli.PACKAGE_MANIFEST_URL,
+                "sha256": cli.MANIFEST_SHA256,
+            },
+        }
+    )
+
+
 class IdentityTests(unittest.TestCase):
     def test_signed_message_round_trips(self) -> None:
         key = Ed25519PrivateKey.generate()
@@ -54,6 +76,13 @@ class IdentityTests(unittest.TestCase):
         message = signed_message(key, "test-room", "Hello")
         cli.verify_message("test-room", message)
 
+    def test_nonce_is_canonicalized_for_transport(self) -> None:
+        self.assertEqual(cli.validate_nonce(123), "123")
+        self.assertEqual(cli.validate_nonce("123"), "123")
+        for invalid in (True, 0, "", "abc", "1" * 20):
+            with self.subTest(invalid=invalid), self.assertRaises(cli.SonnetError):
+                cli.validate_nonce(invalid)
+
     def test_tampered_message_is_rejected(self) -> None:
         key = Ed25519PrivateKey.generate()
         message = signed_message(key, "test-room", "Hello")
@@ -61,19 +90,34 @@ class IdentityTests(unittest.TestCase):
         with self.assertRaises(cli.SonnetError):
             cli.verify_message("test-room", message)
 
+    def test_untrusted_plaintext_envelope_is_removed_exactly(self) -> None:
+        wrapped = f"{cli.UNTRUSTED_TEXT_PREFIX}\n\nvalue"
+        self.assertEqual(cli.unwrap_untrusted_text(wrapped), "value")
+        self.assertEqual(cli.unwrap_untrusted_text("plain value\n"), "plain value")
+
+    def test_similar_untrusted_plaintext_envelope_is_not_removed(self) -> None:
+        wrapped = f"{cli.UNTRUSTED_TEXT_PREFIX}!\n\nvalue"
+        self.assertEqual(cli.unwrap_untrusted_text(wrapped), wrapped)
+
+    def test_load_identity_accepts_unencrypted_openssh_key(self) -> None:
+        key = Ed25519PrivateKey.generate()
+        encoded = key.private_bytes(Encoding.PEM, PrivateFormat.OpenSSH, NoEncryption())
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "identity"
+            path.write_bytes(encoded)
+            loaded = cli.load_identity(path)
+        self.assertEqual(cli.did_from_private_key(loaded), cli.did_from_private_key(key))
+
 
 class LaunchTests(unittest.TestCase):
     def test_owner_signed_pinned_launch_is_ready(self) -> None:
         key = Ed25519PrivateKey.generate()
-        launch_text = (
-            f"launch {cli.CONTEST_ID} package {cli.RULES_COMMIT} "
-            f"manifest {cli.MANIFEST_SHA256}"
-        )
-        message = signed_message(key, cli.RULES_ROOM, launch_text)
         owner = cli.did_from_private_key(key)
-        status = cli.inspect_launch(FakeClient(owner, [message], results_owner=owner))
+        message = signed_message(key, cli.RULES_ROOM, launch_text(owner))
+        with patch.object(cli, "OFFICIAL_REFEREE_DID", owner):
+            status = cli.inspect_launch(FakeClient(owner, [message], results_owner=owner))
         self.assertTrue(status["ready"])
-        self.assertEqual(status["referee_did"], cli.did_from_private_key(key))
+        self.assertEqual(status["referee_did"], owner)
 
     def test_unowned_rules_room_is_not_ready(self) -> None:
         status = cli.inspect_launch(FakeClient(None, []))
@@ -82,22 +126,22 @@ class LaunchTests(unittest.TestCase):
 
     def test_mismatched_results_owner_is_not_ready(self) -> None:
         key = Ed25519PrivateKey.generate()
+        owner = cli.did_from_private_key(key)
         other_owner = cli.did_from_private_key(Ed25519PrivateKey.generate())
-        text = f"{cli.CONTEST_ID} {cli.RULES_COMMIT} {cli.MANIFEST_SHA256}"
-        message = signed_message(key, cli.RULES_ROOM, text)
-        status = cli.inspect_launch(
-            FakeClient(cli.did_from_private_key(key), [message], results_owner=other_owner)
-        )
+        message = signed_message(key, cli.RULES_ROOM, launch_text(owner))
+        with patch.object(cli, "OFFICIAL_REFEREE_DID", owner):
+            status = cli.inspect_launch(FakeClient(owner, [message], results_owner=other_owner))
         self.assertFalse(status["ready"])
         self.assertIn("owners do not match", status["errors"][0])
 
-    def test_late_launch_is_not_ready(self) -> None:
+    def test_launch_after_scheduled_opening_is_accepted_when_officially_pinned(self) -> None:
         key = Ed25519PrivateKey.generate()
-        text = f"{cli.CONTEST_ID} {cli.RULES_COMMIT} {cli.MANIFEST_SHA256}"
-        message = signed_message(key, cli.RULES_ROOM, text, timestamp=cli.OPENING)
-        status = cli.inspect_launch(FakeClient(cli.did_from_private_key(key), [message]))
-        self.assertFalse(status["ready"])
-        self.assertIn("before opening", status["errors"][0])
+        owner = cli.did_from_private_key(key)
+        message = signed_message(key, cli.RULES_ROOM, launch_text(owner), timestamp=cli.OPENING)
+        with patch.object(cli, "OFFICIAL_REFEREE_DID", owner):
+            status = cli.inspect_launch(FakeClient(owner, [message], results_owner=owner))
+        self.assertTrue(status["ready"])
+        self.assertTrue(status["launch_after_scheduled_opening"])
 
 
 class PayloadTests(unittest.TestCase):
@@ -113,7 +157,7 @@ class PayloadTests(unittest.TestCase):
 
     def test_roster_needs_four_distinct_dids(self) -> None:
         with self.assertRaises(cli.SonnetError):
-            cli.roster_payload("team1", "d-sonnet-1-team-team1", 1, [self.did] * 4, "roster-1")
+            cli.roster_payload("team1", "d-sonnet-2-team-team1", 1, [self.did] * 4, "roster-1")
 
     def test_word_rejects_letter_not_in_signer_did(self) -> None:
         missing = next(letter for letter in "abcdefghijklmnopqrstuvwxyz" if letter not in self.did.lower())
