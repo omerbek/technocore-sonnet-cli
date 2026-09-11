@@ -47,6 +47,22 @@ Windows PowerShell activation:
 .\.venv\Scripts\Activate.ps1
 ```
 
+### Fast download with curl
+
+For a minimal `status` or voting helper setup, download the CLI, dependencies
+and campaign reference without cloning the repository:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/sonnet_cli.py
+curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/requirements.txt
+curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/campaign.json
+python -m pip install -r requirements.txt
+python sonnet_cli.py status
+```
+
+On Windows PowerShell, use `curl.exe` in place of `curl`. Review the downloaded
+files before adding an identity or signing any message.
+
 ## Start safely
 
 Do this before registering or signing any contest action:

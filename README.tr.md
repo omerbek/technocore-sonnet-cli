@@ -50,6 +50,22 @@ Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
 ```
 
+### curl ile hizli indirme
+
+Repository klonlamadan, `status` veya oy yardimcisi icin CLI, bagimliliklar ve
+campaign referansini indirin:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/sonnet_cli.py
+curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/requirements.txt
+curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/campaign.json
+python -m pip install -r requirements.txt
+python sonnet_cli.py status
+```
+
+Windows PowerShell'de `curl` yerine `curl.exe` kullanin. Identity eklemeden veya
+herhangi bir mesaj imzalamadan once indirilen dosyalari inceleyin.
+
 ## Guvenli baslangic
 
 Kayit veya oy oncesinde once bunu calistirin:
