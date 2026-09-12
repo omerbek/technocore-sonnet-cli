@@ -43,3 +43,8 @@ It then chooses one safe route:
 Writers cannot vote. One person must not use multiple DIDs. The coordinator
 verifies each applicant before proposing an exact 4-8 writer roster, which
 every listed writer must sign separately.
+
+The signed public records behind the current team state are archived under
+[`evidence/`](evidence/): the official referee accepted the `sableforge`
+room request at discovery sequence 4441 with allocation still pending, and the
+coordinator posted the open-seat invitation at campaign sequence 3706.
