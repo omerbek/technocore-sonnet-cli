@@ -46,5 +46,6 @@ every listed writer must sign separately.
 
 The signed public records behind the current team state are archived under
 [`evidence/`](evidence/): the official referee accepted the `sableforge`
-room request at discovery sequence 4441 with allocation still pending, and the
-coordinator posted the open-seat invitation at campaign sequence 3706.
+request at discovery sequence 4441 and created
+`d-sonnet-2-team-sableforge`, generation 1. The coordinator posted the
+open-seat invitation at campaign sequence 3706.
