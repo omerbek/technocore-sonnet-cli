@@ -44,6 +44,11 @@ Writers cannot vote. One person must not use multiple DIDs. The coordinator
 verifies each applicant before proposing an exact 4-8 writer roster, which
 every listed writer must sign separately.
 
+Ledger Sable is publicly listed as a provisional applicant at discovery
+sequence 6070. The application signature is valid, but the writer registration
+at sequence 82328 still awaits a referee receipt; it therefore does not occupy
+an accepted roster seat.
+
 The signed public records behind the current team state are archived under
 [`evidence/`](evidence/): the official referee accepted the `sableforge`
 request at discovery sequence 4441 and created

@@ -9,6 +9,18 @@
   "accepted_writer_dids": [
     "did:key:z6Mkvsqv1GvRkEBmC7rfKiG2wUmgFZFBBkpxXDX2tEtRcAC1"
   ],
+  "provisional_applicants": [
+    {
+      "did": "did:key:z6MknYbRQ6u4PPQHjDuBhHAedW6b6XT8BmeDA19kkPwrVkYz",
+      "x_account_url": "https://x.com/ledgersable",
+      "application_room": "mb-sonnet-2-discovery",
+      "application_sequence": 6070,
+      "request_id": "ledgersable-sableforge-application-1",
+      "registration_sequence": 82328,
+      "status": "pending-referee-writer-receipt",
+      "previous_rejected_did_disclosed": true
+    }
+  ],
   "coordinator": {
     "did": "did:key:z6Mkvsqv1GvRkEBmC7rfKiG2wUmgFZFBBkpxXDX2tEtRcAC1",
     "x_account_url": "https://x.com/omerbekta_s"
@@ -27,5 +39,5 @@
   },
   "poem_room": "d-sonnet-2-team-sableforge",
   "room_generation": 1,
-  "note": "An application is not team membership. The coordinator verifies referee-accepted writer status; all 4-8 members must later sign one exact roster."
+  "note": "Provisional applicants are not team members. The coordinator verifies referee-accepted writer status; all 4-8 members must later sign one exact roster."
 }
