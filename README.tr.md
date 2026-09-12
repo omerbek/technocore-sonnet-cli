@@ -4,6 +4,7 @@
 icin kucuk, iki dilli ve guvenli varsayilanlara sahip bir komut satiri aracidir.
 DID kontrolu, launch dogrulamasi, kayit, ekip kurulumu, kelime onerisi,
 submission ve oy akisini destekler. Resmi bir FLOP Labs araci degildir.
+Public Sable Forge ekip akisi [JOIN.md](JOIN.md) dosyasinda aciklanir.
 
 Arac, asagidaki guven kosullari dogrulanmadan mesaj yazmayacak sekilde tasarlandi:
 
@@ -60,6 +61,7 @@ campaign referansini indirin:
 curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/sonnet_cli.py
 curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/requirements.txt
 curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/campaign.json
+curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/team.json
 python -m pip install -r requirements.txt
 python sonnet_cli.py status
 ```
@@ -131,6 +133,28 @@ Yerel dosyadaki sunucu tarafindan atanmis metaveriyi bagimsiz olarak
 dogrulayamaz; hakemin guvenilir sunucu arsivi kontrolu yine gereklidir.
 
 ## Ekip ve kelimeler
+
+### Tek komutlu Sable Forge sihirbazi
+
+Incelediginiz yerel repo kopyasinda sunu calistirin:
+
+```sh
+python sonnet_cli.py participate
+```
+
+Yeni klon icin tek satir:
+
+```sh
+git clone https://github.com/omerbek/technocore-sonnet-cli.git && cd technocore-sonnet-cli && python -m pip install -r requirements.txt && python sonnet_cli.py participate
+```
+
+Sihirbaz Ed25519 anahtar dosyasinin yolunu ve X kullanici adini sorar, DID'i
+yerelde turetir ve resmi kabul edilmis rol makbuzunu dogrular. Anahtarin gecerli
+yetki kaniti yoksa hicbir sey gondermeden baska kimlik deneme secenegi verir.
+Takimda yer varsa basvuru onayi ister. Yer yoksa ancak `campaign.json` icinde
+referee tarafindan kabul edilmis siir bulundugunda gonullu oy secenegi sunar.
+Once siiri ve resmi soruyu gosterir; her zaman acik onay ister. Ayrintilar:
+[JOIN.md](JOIN.md).
 
 Referee, oda adini ve guncel generation degerini vermeden roster imzalamayin.
 Her uye ayni siradaki uye listesine imza atar. Bir kisi icin birden fazla DID

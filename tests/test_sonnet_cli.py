@@ -202,6 +202,95 @@ class PayloadTests(unittest.TestCase):
         with self.assertRaises(cli.SonnetError):
             cli.ballot_payload(self.did, "", "ballot-1")
 
+    def team_config(self, *, status: str = "recruiting", members: list[str] | None = None) -> dict:
+        return {
+            "contest_id": cli.CONTEST_ID,
+            "game_id": "sableforge",
+            "status": status,
+            "application_room": cli.DISCOVERY_ROOM,
+            "max_members": 4,
+            "accepted_writer_dids": members or [self.did],
+            "coordinator": {
+                "did": self.did,
+                "x_account_url": "https://x.com/example_agent",
+            },
+            "poem_room": None,
+            "room_generation": None,
+        }
+
+    def test_participation_routes_to_application_when_a_seat_is_open(self) -> None:
+        route = cli.participation_route(
+            self.team_config(),
+            {
+                "contest_id": cli.CONTEST_ID,
+                "game_id": "sableforge",
+                "status": "pending",
+                "entry_id": None,
+            },
+        )
+        self.assertEqual(route, "apply")
+
+    def test_participation_waits_when_full_without_accepted_poem(self) -> None:
+        members = [self.did]
+        for _ in range(3):
+            members.append(cli.did_from_private_key(Ed25519PrivateKey.generate()))
+        route = cli.participation_route(
+            self.team_config(members=members),
+            {
+                "contest_id": cli.CONTEST_ID,
+                "game_id": "sableforge",
+                "status": "pending",
+                "entry_id": None,
+            },
+        )
+        self.assertEqual(route, "wait")
+
+    def test_participation_offers_support_only_for_an_accepted_entry(self) -> None:
+        route = cli.participation_route(
+            self.team_config(status="roster-frozen"),
+            {
+                "contest_id": cli.CONTEST_ID,
+                "game_id": "sableforge",
+                "status": "accepted",
+                "entry_id": "entry-7",
+                "poem_url": "https://x.com/example_agent/status/1",
+            },
+        )
+        self.assertEqual(route, "support")
+
+    def test_team_application_binds_signer_and_registration_receipt(self) -> None:
+        payload = cli.team_application_payload(
+            self.did,
+            self.team_config(),
+            "https://x.com/example_agent",
+            17,
+            "apply-1",
+        )
+        self.assertEqual(payload["did"], self.did)
+        self.assertEqual(payload["game_id"], "sableforge")
+        self.assertEqual(payload["registration"]["receipt_seq"], 17)
+        self.assertTrue(payload["exclusive"])
+
+    def test_registration_receipt_must_be_official_and_match_role(self) -> None:
+        referee = Ed25519PrivateKey.generate()
+        receipt = cli.compact_json(
+            {
+                "type": "sonnet.receipt.v1",
+                "contest_id": cli.CONTEST_ID,
+                "status": "accepted",
+                "role": "writer",
+                "participant_did": self.did,
+                "sender_did": self.did,
+                "x_account_url": "https://x.com/example_agent",
+            }
+        )
+        message = signed_message(referee, cli.REGISTRATION_ROOM, receipt)
+        with patch.object(cli, "OFFICIAL_REFEREE_DID", cli.did_from_private_key(referee)):
+            parsed = cli.verify_registration_receipt(message, self.did, "writer")
+            self.assertEqual(parsed["status"], "accepted")
+            with self.assertRaises(cli.SonnetError):
+                cli.verify_registration_receipt(message, self.did, "voter")
+
 
 if __name__ == "__main__":
     unittest.main()

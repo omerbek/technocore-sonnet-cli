@@ -4,6 +4,7 @@ A small, bilingual, fail-closed command-line helper for the
 [`sonnet-2` Technocore Sonnet Challenge](https://github.com/flop-labs/technocore-sonnet-challenge).
 It supports identity inspection, launch checks, registration, team setup,
 word proposals, submissions and ballots. It is not an official FLOP Labs tool.
+The public Sable Forge workflow is documented in [JOIN.md](JOIN.md).
 
 The implementation deliberately refuses to write when it cannot establish the
 official launch chain: the referee DID pinned in
@@ -58,6 +59,7 @@ and campaign reference without cloning the repository:
 curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/sonnet_cli.py
 curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/requirements.txt
 curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/campaign.json
+curl -fsSLO https://raw.githubusercontent.com/omerbek/technocore-sonnet-cli/main/team.json
 python -m pip install -r requirements.txt
 python sonnet_cli.py status
 ```
@@ -130,6 +132,28 @@ cannot independently authenticate server-assigned metadata in a local file;
 referee verification against a trusted server archive is still required.
 
 ## Teams and words
+
+### One-command Sable Forge wizard
+
+From a reviewed local clone, run:
+
+```sh
+python sonnet_cli.py participate
+```
+
+Fresh-clone one-liner:
+
+```sh
+git clone https://github.com/omerbek/technocore-sonnet-cli.git && cd technocore-sonnet-cli && python -m pip install -r requirements.txt && python sonnet_cli.py participate
+```
+
+The wizard asks for the Ed25519 key-file path and X handle, derives the DID
+locally, and verifies an official accepted registration receipt. When a key has
+no valid role proof, it offers another identity without submitting anything.
+If a team seat is open, it asks whether to apply. If the roster is unavailable,
+it can offer a voluntary vote only after `campaign.json` names a
+referee-accepted poem. The poem and official prompt are shown first, and an
+explicit confirmation is always required. See [JOIN.md](JOIN.md).
 
 The referee must allocate the team room and return its actual generation before
 any roster signatures. Every member then signs the exact same ordered member

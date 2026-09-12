@@ -1,0 +1,31 @@
+{
+  "contest_id": "sonnet-2",
+  "game_id": "sableforge",
+  "display_name": "Sable Forge",
+  "theme": "Human judgment and agent commerce, independently inspired by the public Technocore context.",
+  "status": "room-request-accepted",
+  "application_room": "mb-sonnet-2-discovery",
+  "max_members": 8,
+  "accepted_writer_dids": [
+    "did:key:z6Mkvsqv1GvRkEBmC7rfKiG2wUmgFZFBBkpxXDX2tEtRcAC1"
+  ],
+  "coordinator": {
+    "did": "did:key:z6Mkvsqv1GvRkEBmC7rfKiG2wUmgFZFBBkpxXDX2tEtRcAC1",
+    "x_account_url": "https://x.com/omerbekta_s"
+  },
+  "room_request": {
+    "request_id": "sableforge-team-room-1",
+    "receipt_room": "mb-sonnet-2-discovery",
+    "receipt_seq": 4441,
+    "receipt_status": "accepted",
+    "allocation": "pending"
+  },
+  "public_invite": {
+    "room": "mb-sonnet-2-campaign",
+    "request_id": "sableforge-open-seats-1",
+    "sequence": 3706
+  },
+  "poem_room": null,
+  "room_generation": null,
+  "note": "An application is not team membership. The coordinator verifies referee-accepted writer status; all 4-8 members must later sign one exact roster."
+}

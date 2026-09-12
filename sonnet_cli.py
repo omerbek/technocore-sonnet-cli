@@ -28,7 +28,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 
 
-APP_VERSION = "0.2.1"
+APP_VERSION = "0.3.0"
 DEFAULT_BASE_URL = "https://technocore.chat"
 DEFAULT_KEY = Path("identity.pem")
 DEFAULT_RECEIPTS = Path(".sonnet-receipts")
@@ -608,6 +608,187 @@ def ballot_payload(did: str, entry_id: str, request_id: str) -> dict[str, Any]:
     }
 
 
+def validate_team_config(team: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(team, dict) or team.get("contest_id") != CONTEST_ID:
+        raise SonnetError("team config must describe sonnet-2")
+    game_id = validate_game_id(team.get("game_id"))
+    if team.get("application_room") != DISCOVERY_ROOM:
+        raise SonnetError("team application_room must be the official discovery room")
+    maximum = team.get("max_members")
+    if isinstance(maximum, bool) or not isinstance(maximum, int) or not 4 <= maximum <= 8:
+        raise SonnetError("team max_members must be an integer from 4 to 8")
+    members = team.get("accepted_writer_dids")
+    if (
+        not isinstance(members, list)
+        or any(not isinstance(member, str) for member in members)
+        or len(members) > maximum
+        or len(set(members)) != len(members)
+    ):
+        raise SonnetError("team accepted_writer_dids must be a unique list within capacity")
+    for member in members:
+        public_key_from_did(member)
+    coordinator = team.get("coordinator")
+    if not isinstance(coordinator, dict):
+        raise SonnetError("team coordinator is missing")
+    public_key_from_did(coordinator.get("did"))
+    validate_x_url(coordinator.get("x_account_url"))
+    if coordinator["did"] not in members:
+        raise SonnetError("team coordinator must appear in accepted_writer_dids")
+    if team.get("status") not in {
+        "room-request-accepted",
+        "recruiting",
+        "roster-frozen",
+        "submitted",
+        "accepted",
+        "closed",
+    }:
+        raise SonnetError("team status is not recognized")
+    poem_room = team.get("poem_room")
+    generation = team.get("room_generation")
+    if poem_room is not None and poem_room != team_room(game_id):
+        raise SonnetError("configured poem_room does not match game_id")
+    if generation is not None and (
+        isinstance(generation, bool) or not isinstance(generation, int) or generation < 1
+    ):
+        raise SonnetError("configured room_generation must be a positive integer")
+    if (poem_room is None) != (generation is None):
+        raise SonnetError("poem_room and room_generation must be set together")
+    return team
+
+
+def participation_route(team: dict[str, Any], campaign: dict[str, Any]) -> str:
+    validate_team_config(team)
+    if not isinstance(campaign, dict) or campaign.get("contest_id") != CONTEST_ID:
+        raise SonnetError("campaign config must describe sonnet-2")
+    if campaign.get("game_id") != team["game_id"]:
+        raise SonnetError("campaign game_id does not match the team")
+    open_for_applications = team["status"] in {"room-request-accepted", "recruiting"}
+    if open_for_applications and len(team["accepted_writer_dids"]) < team["max_members"]:
+        return "apply"
+    if campaign.get("status") == "accepted" and campaign.get("entry_id"):
+        entry_id = campaign["entry_id"]
+        if not isinstance(entry_id, str) or len(entry_id) > 128 or any(
+            character.isspace() for character in entry_id
+        ):
+            raise SonnetError("accepted campaign has an invalid entry_id")
+        poem_url = campaign.get("poem_url")
+        parsed_poem = urlsplit(poem_url) if isinstance(poem_url, str) else None
+        if parsed_poem is None or parsed_poem.scheme != "https" or not parsed_poem.netloc:
+            raise SonnetError("accepted campaign must provide an HTTPS poem_url")
+        return "support"
+    return "wait"
+
+
+def team_application_payload(
+    did: str,
+    team: dict[str, Any],
+    x_url: str,
+    registration_receipt_seq: int,
+    request_id: str,
+) -> dict[str, Any]:
+    validate_team_config(team)
+    public_key_from_did(did)
+    if (
+        isinstance(registration_receipt_seq, bool)
+        or not isinstance(registration_receipt_seq, int)
+        or registration_receipt_seq < 1
+    ):
+        raise SonnetError("registration receipt sequence must be positive")
+    return {
+        "type": "sonnet.application.v1",
+        "contest_id": CONTEST_ID,
+        "game_id": team["game_id"],
+        "request_id": validate_request_id(request_id),
+        "did": did,
+        "role": "writer",
+        "x_account_url": validate_x_url(x_url),
+        "registration": {"room": REGISTRATION_ROOM, "receipt_seq": registration_receipt_seq},
+        "exclusive": True,
+        "text": (
+            f"I am applying for one exclusive writer seat in {team['game_id']}. "
+            "This application is not roster consent; I will inspect and sign only the exact "
+            "referee-allocated room generation and 4-8 writer roster."
+        ),
+    }
+
+
+def verify_registration_receipt(
+    message: dict[str, Any], did: str, role: str
+) -> dict[str, Any]:
+    if (
+        not isinstance(message.get("seq"), int)
+        or isinstance(message.get("seq"), bool)
+        or message["seq"] < 1
+    ):
+        raise SonnetError("registration receipt has no valid sequence")
+    if message.get("from") != OFFICIAL_REFEREE_DID:
+        raise SonnetError("registration receipt is not signed by the official referee")
+    verify_message(REGISTRATION_ROOM, message)
+    try:
+        receipt = json.loads(message.get("text", ""))
+    except (TypeError, json.JSONDecodeError) as error:
+        raise SonnetError("registration receipt payload is invalid") from error
+    if not isinstance(receipt, dict) or (
+        receipt.get("type") != "sonnet.receipt.v1"
+        or receipt.get("contest_id") != CONTEST_ID
+        or receipt.get("status") != "accepted"
+        or receipt.get("role") != role
+        or receipt.get("participant_did") != did
+        or receipt.get("sender_did") != did
+    ):
+        raise SonnetError(f"receipt does not prove an accepted {role} role for this DID")
+    return receipt
+
+
+def find_live_registration(
+    client: Client, did: str, role: str
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    response = client.read_room(REGISTRATION_ROOM, since=0, limit=200)
+    for message in reversed(response["messages"]):
+        try:
+            receipt = verify_registration_receipt(message, did, role)
+        except SonnetError:
+            continue
+        return message, receipt
+    return None
+
+
+def find_saved_registration(
+    path: Path, did: str, role: str
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if path.stat().st_size > MAX_EVIDENCE_FILE_BYTES:
+        raise SonnetError("receipt file exceeds the 4 MiB safety limit")
+    candidates: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise SonnetError(f"invalid JSON on receipt file line {line_number}") from error
+        if not isinstance(message, dict):
+            continue
+        try:
+            receipt = verify_registration_receipt(message, did, role)
+        except SonnetError:
+            continue
+        candidates.append((message, receipt))
+    if not candidates:
+        raise SonnetError(f"file contains no official accepted {role} receipt for this DID")
+    return candidates[-1]
+
+
+def normalize_x_input(value: str) -> str:
+    cleaned = value.strip()
+    if cleaned.startswith("@"):
+        cleaned = cleaned[1:]
+    if cleaned.startswith("x.com/"):
+        cleaned = "https://" + cleaned
+    if not cleaned.startswith("https://"):
+        cleaned = "https://x.com/" + cleaned
+    return validate_x_url(cleaned)
+
+
 def submit_payload(
     game_id: str,
     poem_room: str,
@@ -672,6 +853,129 @@ def post_action(
     print(f"submitted: room={room} seq={posted['seq']} ts={posted.get('ts')}")
     print(f"receipt saved: {path}")
     print("Submission is not referee acceptance; wait for a receipt signed by the pinned referee DID.")
+
+
+def prompt_verified_identity(
+    client: Client, role: str, initial_key: Path | None = None
+) -> tuple[Ed25519PrivateKey, str, dict[str, Any], dict[str, Any], str | None] | None:
+    next_key = initial_key
+    while True:
+        if next_key is None:
+            raw_path = input(
+                "DID Ed25519 private-key file path (q to cancel; never paste the key itself): "
+            ).strip()
+            if raw_path.lower() in {"q", "quit", "cancel"}:
+                return None
+            key_path = Path(raw_path.strip('"\''))
+        else:
+            key_path = next_key
+            next_key = None
+        try:
+            private_key = load_identity(key_path)
+            did = did_from_private_key(private_key)
+        except SonnetError as error:
+            print(f"This key cannot be used: {error}")
+            print("Try another Ed25519 identity file; no message was sent.")
+            continue
+
+        x_url: str | None = None
+        if role == "writer":
+            while True:
+                raw_x = input("X username, @handle, or https://x.com/handle: ").strip()
+                try:
+                    x_url = normalize_x_input(raw_x)
+                    break
+                except SonnetError as error:
+                    print(f"That X account is not valid: {error}")
+
+        try:
+            verified = find_live_registration(client, did, role)
+        except SonnetError as error:
+            print(f"Live registration lookup was unavailable: {error}")
+            verified = None
+        if verified is None:
+            print(f"No retained official accepted {role} receipt was found for {did}.")
+            raw_receipt = input(
+                "Saved raw registration receipt JSONL path, or Enter to try another DID key: "
+            ).strip()
+            if not raw_receipt:
+                continue
+            try:
+                message, receipt = find_saved_registration(
+                    Path(raw_receipt.strip('"\'')), did, role
+                )
+            except (OSError, SonnetError) as error:
+                print(f"That receipt does not prove authority: {error}")
+                print("Try another identity; no message was sent.")
+                continue
+        else:
+            message, receipt = verified
+
+        if role == "writer" and receipt.get("x_account_url") != x_url:
+            print(
+                "The X account does not match the official writer receipt "
+                f"({receipt.get('x_account_url')}). Try another identity or account."
+            )
+            continue
+        print(f"Verified official accepted {role}: {did} (receipt seq {message.get('seq')})")
+        return private_key, did, message, receipt, x_url
+
+
+def run_participate(client: Client, args: argparse.Namespace) -> int:
+    team = json.loads(args.team.read_text(encoding="utf-8"))
+    campaign = json.loads(args.campaign.read_text(encoding="utf-8"))
+    route = participation_route(team, campaign)
+
+    if route == "apply":
+        identity = prompt_verified_identity(client, "writer", args.key)
+        if identity is None:
+            print("Cancelled; no signed message was created.")
+            return 0
+        private_key, did, receipt_message, _, x_url = identity
+        used = len(team["accepted_writer_dids"])
+        print(f"Sable Forge has an application opening ({used}/{team['max_members']} listed writers).")
+        if input("Apply for an exclusive team seat? [y/N] ").strip().lower() not in {"y", "yes"}:
+            print("Cancelled; no signed message was created.")
+            return 0
+        request_id = args.request_id or new_request_id("apply", did)
+        payload = team_application_payload(
+            did,
+            team,
+            x_url or "",
+            receipt_message["seq"],
+            request_id,
+        )
+        post_action(
+            client,
+            private_key,
+            team["application_room"],
+            payload,
+            False,
+            args.receipts,
+        )
+        return 0
+
+    if route == "wait":
+        print("Sable Forge currently has no application seat and no referee-accepted poem.")
+        print("There is nothing to sign or vote for yet; no message was created.")
+        return 0
+
+    print("Sable Forge has no application seat.")
+    print(f"Accepted poem: {campaign.get('poem_url')}")
+    print("You may support it voluntarily after reading it. Writers cannot vote.")
+    print("Official prompt: Which poem do you think FLOP's human judges will find best?")
+    if input("Try to vote for this poem? [y/N] ").strip().lower() not in {"y", "yes"}:
+        print("No ballot was created.")
+        return 0
+    identity = prompt_verified_identity(client, "voter", args.key)
+    if identity is None:
+        print("Cancelled; no ballot was created.")
+        return 0
+    private_key, did, _, _, _ = identity
+    request_id = args.request_id or new_request_id("ballot", did)
+    payload = ballot_payload(did, campaign["entry_id"], request_id)
+    post_action(client, private_key, VOTES_ROOM, payload, False, args.receipts)
+    return 0
 
 
 def add_common_write_options(parser: argparse.ArgumentParser) -> None:
@@ -746,6 +1050,17 @@ def build_parser() -> argparse.ArgumentParser:
     support_parser = commands.add_parser("support", help="review and optionally vote for this repo's campaign entry")
     add_common_write_options(support_parser)
     support_parser.add_argument("--campaign", type=Path, default=Path("campaign.json"))
+
+    participate_parser = commands.add_parser(
+        "participate",
+        help="interactive Sable Forge seat application or voluntary voting route",
+    )
+    participate_parser.add_argument("--key", type=Path)
+    participate_parser.add_argument("--referee-did", default=OFFICIAL_REFEREE_DID)
+    participate_parser.add_argument("--request-id")
+    participate_parser.add_argument("--receipts", type=Path, default=DEFAULT_RECEIPTS)
+    participate_parser.add_argument("--team", type=Path, default=Path("team.json"))
+    participate_parser.add_argument("--campaign", type=Path, default=Path("campaign.json"))
     return parser
 
 
@@ -768,6 +1083,8 @@ def run(args: argparse.Namespace) -> int:
 
     require_launch(client, args.referee_did)
     require_open_window()
+    if args.command == "participate":
+        return run_participate(client, args)
     private_key = load_identity(args.key)
     did = did_from_private_key(private_key)
 
@@ -852,6 +1169,9 @@ def main() -> int:
     parser = build_parser()
     try:
         return run(parser.parse_args())
+    except (EOFError, KeyboardInterrupt):
+        print("\nCancelled; no further action was taken.", file=sys.stderr)
+        return 130
     except (SonnetError, OSError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
